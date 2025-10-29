@@ -215,6 +215,34 @@ class TestToml(MyTestCase):
         self._test('table_grafana')
 
 
+class TestUcl(MyTestCase):
+    _encoder = "encode_ucl"
+
+    def test_boolean(self):
+        self._test('boolean')
+
+    def test_boolean_convert(self):
+        self._test(['boolean', 'boolean_convert'], convert_bools=True)
+
+    def test_string(self):
+        self._test('string')
+
+    def test_number(self):
+        self._test('number')
+
+    def test_number_convert(self):
+        self._test(['number', 'number_convert'], convert_nums=True)
+
+    def test_list(self):
+        self._test('list')
+
+    def test_list_indent(self):
+        self._test(['list', 'list_indent'], indent="  ")
+
+    def test_dict(self):
+        self._test('dict')
+
+
 class TestXml(MyTestCase):
     _encoder = 'encode_xml'
 

@@ -998,6 +998,151 @@ def encode_toml(
     return rv
 
 
+def encode_ucl(
+        data, convert_bools=False, convert_nums=False,
+        indent="    ", level=0, sort_keys=True):
+    """Convert Python data structure to UCL format."""
+
+    # Return value
+    rv = ""
+
+    if (
+            _is_num(data)
+            or (convert_nums and _str_is_num(data))
+            or isinstance(data, bool)
+            or (convert_bools and _str_is_bool(data))):
+        # It's a number or boolean
+        rv += str(data).lower() + ";"
+
+    elif isinstance(data, string_types):
+        if data == "null":
+            rv += "null;"
+        else:
+            rv += '"%s";' % _escape(_escape(data), format="control")
+
+    elif isinstance(data, list):
+        rv += "[\n"
+
+        for val in data:
+            if isinstance(val, dict):
+                # Handle dict in list specially - no braces, inline keys
+                if sort_keys:
+                    items = sorted(val.items())
+                else:
+                    items = val.items()
+
+                for key, dict_val in items:
+                    if isinstance(dict_val, dict):
+                        # Nested dict
+                        rv += "%s%s " % (indent * level, key)
+                        val_encoded = encode_ucl(
+                            dict_val,
+                            convert_bools=convert_bools,
+                            convert_nums=convert_nums,
+                            sort_keys=sort_keys,
+                            indent=indent,
+                            level=level + 1,
+                        )
+                        rv += "%s" % val_encoded
+                    elif isinstance(dict_val, list):
+                        # List value
+                        rv += "%s%s " % (indent * level, key)
+                        val_encoded = encode_ucl(
+                            dict_val,
+                            convert_bools=convert_bools,
+                            convert_nums=convert_nums,
+                            sort_keys=sort_keys,
+                            indent=indent,
+                            level=level + 1,
+                        )
+                        # Remove trailing newline to add comma on same line
+                        if val_encoded.endswith("\n"):
+                            val_encoded = val_encoded[:-1]
+                        rv += "%s" % val_encoded
+                    else:
+                        # Simple value
+                        simple_encoded = encode_ucl(
+                            dict_val,
+                            convert_bools=convert_bools,
+                            convert_nums=convert_nums,
+                            sort_keys=sort_keys,
+                            indent=indent,
+                            level=level + 1,
+                        )
+                        rv += "%s%s = %s" % (indent * level, key, simple_encoded)
+                # Add comma and newline after the dict
+                rv += ",\n"
+            else:
+                val_encoded = encode_ucl(
+                    val,
+                    convert_bools=convert_bools,
+                    convert_nums=convert_nums,
+                    sort_keys=sort_keys,
+                    indent=indent,
+                    level=level + 1,
+                )
+                # Remove trailing semicolon for list items
+                if val_encoded.endswith(";"):
+                    val_encoded = val_encoded[:-1]
+                rv += "%s%s,\n" % (indent * level, val_encoded)
+
+        rv += "%s]" % (indent * (level - 1))
+
+    elif isinstance(data, dict):
+        if level > 0:
+            rv += "{\n"
+
+        if sort_keys:
+            items = sorted(data.items())
+        else:
+            items = data.items()
+
+        for key, val in items:
+            if isinstance(val, dict):
+                # Nested dict
+                rv += "%s%s " % (indent * level, key)
+                val_encoded = encode_ucl(
+                    val,
+                    convert_bools=convert_bools,
+                    convert_nums=convert_nums,
+                    sort_keys=sort_keys,
+                    indent=indent,
+                    level=level + 1,
+                )
+                rv += "%s\n" % val_encoded
+            elif isinstance(val, list):
+                # List value
+                rv += "%s%s " % (indent * level, key)
+                val_encoded = encode_ucl(
+                    val,
+                    convert_bools=convert_bools,
+                    convert_nums=convert_nums,
+                    sort_keys=sort_keys,
+                    indent=indent,
+                    level=level + 1,
+                )
+                rv += "%s\n" % val_encoded
+            else:
+                # Simple value
+                val_encoded = encode_ucl(
+                    val,
+                    convert_bools=convert_bools,
+                    convert_nums=convert_nums,
+                    sort_keys=sort_keys,
+                    indent=indent,
+                    level=level + 1,
+                )
+                rv += "%s%s = %s\n" % (indent * level, key, val_encoded)
+
+        if level > 0:
+            rv += indent * (level - 1) + "}"
+
+    else:
+        raise errors.AnsibleFilterError("Unexpected data type: %s" % (type(data)))
+
+    return rv
+
+
 def encode_xml(
         data, attribute_sign="^", escape_xml=True, indent="  ", level=0):
     """Convert Python data structure to XML format."""
@@ -1236,6 +1381,7 @@ class FilterModule(object):
             'encode_nginx': encode_nginx,
             'encode_pam': encode_pam,
             'encode_toml': encode_toml,
+            'encode_ucl': encode_ucl,
             'encode_xml': encode_xml,
             'encode_yaml': encode_yaml,
             'template_replace': template_replace,
