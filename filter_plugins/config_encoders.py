@@ -21,11 +21,13 @@ Config Encoder Filters
 More information: https://github.com/jtyr/ansible-config_encoder_filters
 """
 
-from __future__ import (absolute_import, division, print_function)
-from ansible.module_utils.six import string_types
-from ansible import errors
-from copy import copy
+from __future__ import absolute_import, division, print_function
+
 import re
+from copy import copy
+
+from ansible import errors
+from ansible.module_utils.six import string_types
 
 
 def _str_is_bool(data):
@@ -45,7 +47,9 @@ def _str_is_float(data):
 
     return re.match(
         r"^[-+]?(0|[1-9][0-9]*)(\.[0-9]*)?(e[-+]?[0-9]+)?$",
-        str(data), flags=re.IGNORECASE)
+        str(data),
+        flags=re.IGNORECASE,
+    )
 
 
 def _str_is_num(data):
@@ -71,77 +75,83 @@ def _is_num(data):
 def _escape(data, quote='"', format=None):
     """Escape special characters in a string."""
 
-    if format == 'xml':
+    if format == "xml":
+        return str(data).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    elif format == "control":
         return (
-            str(data).
-            replace('&', '&amp;').
-            replace('<', '&lt;').
-            replace('>', '&gt;'))
-    elif format == 'control':
-        return (
-            str(data).
-            replace('\b', '\\b').
-            replace('\f', '\\f').
-            replace('\n', '\\n').
-            replace('\r', '\\r').
-            replace('\t', '\\t'))
+            str(data)
+            .replace("\b", "\\b")
+            .replace("\f", "\\f")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+        )
     elif quote is not None and len(quote):
-        return str(data).replace('\\', '\\\\').replace(quote, "\\%s" % quote)
+        return str(data).replace("\\", "\\\\").replace(quote, "\\%s" % quote)
     else:
         return data
 
 
 def encode_apache(
-        data, block_type='sections', convert_bools=False, convert_nums=False,
-        indent="  ", level=0, quote_all_nums=False, quote_all_strings=False):
+    data,
+    block_type="sections",
+    convert_bools=False,
+    convert_nums=False,
+    indent="  ",
+    level=0,
+    quote_all_nums=False,
+    quote_all_strings=False,
+):
     """Convert Python data structure to Apache format."""
 
     # Return value
     rv = ""
 
-    if block_type == 'sections':
-        for c in data['content']:
+    if block_type == "sections":
+        for c in data["content"]:
             # First check if this section has options
-            if 'options' in c:
+            if "options" in c:
                 rv += encode_apache(
-                    c['options'],
+                    c["options"],
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     indent=indent,
-                    level=level+1,
+                    level=level + 1,
                     quote_all_nums=quote_all_nums,
                     quote_all_strings=quote_all_strings,
-                    block_type='options')
+                    block_type="options",
+                )
 
             is_empty = False
 
             # Check if this section has some sub-sections
-            if 'sections' in c:
-                for s in c['sections']:
+            if "sections" in c:
+                for s in c["sections"]:
                     # Check for empty sub-sections
-                    for i in s['content']:
-                        if (
-                                ('options' in i and len(i['options']) > 0) or
-                                ('sections' in i and len(i['sections']) > 0)):
+                    for i in s["content"]:
+                        if ("options" in i and len(i["options"]) > 0) or (
+                            "sections" in i and len(i["sections"]) > 0
+                        ):
                             is_empty = True
 
                     if is_empty:
-                        rv += "%s<%s" % (indent * level, s['name'])
+                        rv += "%s<%s" % (indent * level, s["name"])
 
-                        if 'operator' in s:
-                            rv += " %s" % s['operator']
+                        if "operator" in s:
+                            rv += " %s" % s["operator"]
 
-                        if 'param' in s:
-                            rv += ' '
+                        if "param" in s:
+                            rv += " "
                             rv += encode_apache(
-                                s['param'],
+                                s["param"],
                                 convert_bools=convert_bools,
                                 convert_nums=convert_nums,
                                 indent=indent,
-                                level=level+1,
+                                level=level + 1,
                                 quote_all_nums=quote_all_nums,
                                 quote_all_strings=quote_all_strings,
-                                block_type='value')
+                                block_type="value",
+                            )
 
                         rv += ">\n"
                         rv += encode_apache(
@@ -149,48 +159,47 @@ def encode_apache(
                             convert_bools=convert_bools,
                             convert_nums=convert_nums,
                             indent=indent,
-                            level=level+1,
+                            level=level + 1,
                             quote_all_nums=quote_all_nums,
                             quote_all_strings=quote_all_strings,
-                            block_type='sections')
-                        rv += "%s</%s>\n" % (indent * level, s['name'])
+                            block_type="sections",
+                        )
+                        rv += "%s</%s>\n" % (indent * level, s["name"])
 
                         # If not last item of the loop
-                        if c['sections'][-1] != s:
+                        if c["sections"][-1] != s:
                             rv += "\n"
 
-            if (
-                    data['content'][-1] != c and (
-                        'options' in c and len(c['options']) > 0 or (
-                            'sections' in c and
-                            len(c['sections']) > 0 and
-                            is_empty))):
+            if data["content"][-1] != c and (
+                "options" in c
+                and len(c["options"]) > 0
+                or ("sections" in c and len(c["sections"]) > 0 and is_empty)
+            ):
                 rv += "\n"
 
-    elif block_type == 'options':
+    elif block_type == "options":
         for o in data:
             for key, val in sorted(o.items()):
-                rv += "%s%s " % (indent * (level-1), key)
+                rv += "%s%s " % (indent * (level - 1), key)
                 rv += encode_apache(
                     val,
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     indent=indent,
-                    level=level+1,
+                    level=level + 1,
                     quote_all_nums=quote_all_nums,
                     quote_all_strings=quote_all_strings,
-                    block_type='value')
+                    block_type="value",
+                )
                 rv += "\n"
 
-    elif block_type == 'value':
+    elif block_type == "value":
         if isinstance(data, bool) or convert_bools and _str_is_bool(data):
             # Value is a boolean
 
             rv += str(data).lower()
 
-        elif (
-                _is_num(data) or
-                (convert_nums and _str_is_num(data))):
+        elif _is_num(data) or (convert_nums and _str_is_num(data)):
             # Value is a number
 
             if quote_all_nums:
@@ -201,12 +210,13 @@ def encode_apache(
         elif isinstance(data, string_types):
             # Value is a string
             if (
-                    quote_all_strings or
-                    " " in data or
-                    "\t" in data or
-                    "\n" in data or
-                    "\r" in data or
-                    data == ""):
+                quote_all_strings
+                or " " in data
+                or "\t" in data
+                or "\n" in data
+                or "\r" in data
+                or data == ""
+            ):
 
                 rv += '"%s"' % _escape(data)
             else:
@@ -220,10 +230,11 @@ def encode_apache(
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     indent=indent,
-                    level=level+1,
+                    level=level + 1,
                     quote_all_nums=quote_all_nums,
                     quote_all_strings=quote_all_strings,
-                    block_type='value')
+                    block_type="value",
+                )
 
                 # If not last item of the loop
                 if data[-1] != v:
@@ -233,8 +244,14 @@ def encode_apache(
 
 
 def encode_erlang(
-        data, atom_value_indicator=":", convert_bools=False,
-        convert_nums=False, indent="  ", level=0, ordered_tuple_indicator=":"):
+    data,
+    atom_value_indicator=":",
+    convert_bools=False,
+    convert_nums=False,
+    indent="  ",
+    level=0,
+    ordered_tuple_indicator=":",
+):
     """Convert Python data structure to Erlang format."""
 
     # Return value
@@ -247,7 +264,7 @@ def encode_erlang(
 
         for key, val in sorted(data.items()):
             if key == ordered_tuple_indicator:
-                rv += "%s{" % (indent*level)
+                rv += "%s{" % (indent * level)
 
                 if isinstance(val, list):
                     for i, v in enumerate(val):
@@ -257,13 +274,14 @@ def encode_erlang(
                             convert_bools=convert_bools,
                             convert_nums=convert_nums,
                             indent=indent,
-                            level=level+1,
-                            ordered_tuple_indicator=ordered_tuple_indicator)
+                            level=level + 1,
+                            ordered_tuple_indicator=ordered_tuple_indicator,
+                        )
 
-                        if i+1 < len(val):
+                        if i + 1 < len(val):
                             rv += ", "
             else:
-                rv += "%s{%s," % (indent*level, key)
+                rv += "%s{%s," % (indent * level, key)
 
                 if not isinstance(val, dict):
                     rv += " "
@@ -274,16 +292,18 @@ def encode_erlang(
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     indent=indent,
-                    level=level+1,
-                    ordered_tuple_indicator=ordered_tuple_indicator)
+                    level=level + 1,
+                    ordered_tuple_indicator=ordered_tuple_indicator,
+                )
 
             rv += "}"
     elif (
-            data == "null" or
-            _is_num(data) or
-            isinstance(data, bool) or
-            (convert_nums and _str_is_num(data)) or
-            (convert_bools and _str_is_bool(data))):
+        data == "null"
+        or _is_num(data)
+        or isinstance(data, bool)
+        or (convert_nums and _str_is_num(data))
+        or (convert_bools and _str_is_bool(data))
+    ):
         # It's null, number or boolean
 
         rv += str(data).lower()
@@ -293,9 +313,7 @@ def encode_erlang(
 
         atom_len = len(atom_value_indicator)
 
-        if (
-                len(data) > atom_len and
-                data[0:atom_len] == atom_value_indicator):
+        if len(data) > atom_len and data[0:atom_len] == atom_value_indicator:
 
             # Atom configuration value
             rv += data[atom_len:]
@@ -308,10 +326,8 @@ def encode_erlang(
         rv += "["
 
         for val in data:
-            if (
-                    isinstance(val, string_types) or
-                    _is_num(val)):
-                rv += "\n%s" % (indent*level)
+            if isinstance(val, string_types) or _is_num(val):
+                rv += "\n%s" % (indent * level)
 
             rv += encode_erlang(
                 val,
@@ -319,8 +335,9 @@ def encode_erlang(
                 convert_bools=convert_bools,
                 convert_nums=convert_nums,
                 indent=indent,
-                level=level+1,
-                ordered_tuple_indicator=ordered_tuple_indicator)
+                level=level + 1,
+                ordered_tuple_indicator=ordered_tuple_indicator,
+            )
 
             if data[-1] == val:
                 # Last item of the loop
@@ -329,7 +346,7 @@ def encode_erlang(
                 rv += ","
 
         if len(data) > 0:
-            rv += "%s]" % (indent * (level-1))
+            rv += "%s]" % (indent * (level - 1))
         else:
             rv += "]"
 
@@ -367,8 +384,7 @@ def encode_haproxy(data, indent="  "):
                 if isinstance(param, dict):
                     for p_val in list(param.values())[0]:
                         if len(p_val) > 0:
-                            rv += "%s%s %s\n" % (
-                                indent, list(param.keys())[0], p_val)
+                            rv += "%s%s %s\n" % (indent, list(param.keys())[0], p_val)
                 else:
                     if len(param) > 0:
                         rv += "%s%s\n" % (indent, param)
@@ -381,8 +397,14 @@ def encode_haproxy(data, indent="  "):
 
 
 def encode_ini(
-        data, comment="#", delimiter="=", indent="", quote="",
-        section_is_comment=False, ucase_prop=False):
+    data,
+    comment="#",
+    delimiter="=",
+    indent="",
+    quote="",
+    section_is_comment=False,
+    ucase_prop=False,
+):
     """Convert Python data structure to INI format."""
 
     # Return value
@@ -401,10 +423,7 @@ def encode_ini(
             vals = [val]
 
         for item in vals:
-            if (
-                    len(quote) == 0 and
-                    isinstance(item, string_types) and
-                    len(item) == 0):
+            if len(quote) == 0 and isinstance(item, string_types) and len(item) == 0:
                 item = '""'
 
             if item is not None:
@@ -412,8 +431,13 @@ def encode_ini(
                     rv += "%s%s\n" % (indent, prop)
                 else:
                     rv += "%s%s%s%s%s%s\n" % (
-                        indent, prop, delimiter, quote, _escape(item, quote),
-                        quote)
+                        indent,
+                        prop,
+                        delimiter,
+                        quote,
+                        _escape(item, quote),
+                        quote,
+                    )
 
     # Then process all sections
     for section, props in sorted(data.items()):
@@ -433,13 +457,13 @@ def encode_ini(
                 indent=indent,
                 quote=quote,
                 section_is_comment=section_is_comment,
-                ucase_prop=ucase_prop)
+                ucase_prop=ucase_prop,
+            )
 
     return rv
 
 
-def encode_json(
-        data, convert_bools=False, convert_nums=False, indent="  ", level=0):
+def encode_json(data, convert_bools=False, convert_nums=False, indent="  ", level=0):
     """Convert Python data structure to JSON format."""
 
     # Return value
@@ -456,13 +480,14 @@ def encode_json(
         items = sorted(data.items())
 
         for key, val in items:
-            rv += '%s"%s": ' % (indent * (level+1), key)
+            rv += '%s"%s": ' % (indent * (level + 1), key)
             rv += encode_json(
                 val,
                 convert_bools=convert_bools,
                 convert_nums=convert_nums,
                 indent=indent,
-                level=level+1)
+                level=level + 1,
+            )
 
             # Last item of the loop
             if items[-1] == (key, val):
@@ -479,10 +504,11 @@ def encode_json(
             rv += "\n"
 
     elif (
-            data == "null" or
-            _is_num(data) or
-            (convert_nums and _str_is_num(data)) or
-            (convert_bools and _str_is_bool(data))):
+        data == "null"
+        or _is_num(data)
+        or (convert_nums and _str_is_num(data))
+        or (convert_bools and _str_is_bool(data))
+    ):
         # It's a number, null or boolean
 
         rv += str(data).lower()
@@ -490,7 +516,7 @@ def encode_json(
     elif isinstance(data, string_types):
         # It's a string
 
-        rv += '"%s"' % _escape(_escape(data), format='control')
+        rv += '"%s"' % _escape(_escape(data), format="control")
 
     else:
         # It's a list
@@ -501,13 +527,14 @@ def encode_json(
             rv += "\n"
 
         for val in data:
-            rv += indent * (level+1)
+            rv += indent * (level + 1)
             rv += encode_json(
                 val,
                 convert_bools=convert_bools,
                 convert_nums=convert_nums,
                 indent=indent,
-                level=level+1)
+                level=level + 1,
+            )
 
             # Last item of the loop
             if data[-1] == val:
@@ -524,9 +551,15 @@ def encode_json(
 
 
 def encode_logstash(
-        data, backslash_ignore_prefix='@@@', convert_bools=False,
-        convert_nums=False, indent="  ", level=0, prevtype="",
-        section_prefix=":"):
+    data,
+    backslash_ignore_prefix="@@@",
+    convert_bools=False,
+    convert_nums=False,
+    indent="  ",
+    level=0,
+    prevtype="",
+    section_prefix=":",
+):
     """Convert Python data structure to Logstash format."""
 
     # Return value
@@ -535,7 +568,7 @@ def encode_logstash(
     if isinstance(data, dict):
         # The item is a dict
 
-        if prevtype in ('value', 'value_hash', 'array'):
+        if prevtype in ("value", "value_hash", "array"):
             rv += "{\n"
 
         items = sorted(data.items())
@@ -548,25 +581,29 @@ def encode_logstash(
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     indent=indent,
-                    level=level+1,
-                    prevtype='block')
+                    level=level + 1,
+                    prevtype="block",
+                )
 
                 # Last item of the loop
                 if items[-1] == (key, val):
                     if (
-                            isinstance(val, string_types) or
-                            _is_num(val) or
-                            isinstance(val, bool) or (
-                                isinstance(val, dict) and
-                                val and
-                                list(val.keys())[0][0] != section_prefix)):
+                        isinstance(val, string_types)
+                        or _is_num(val)
+                        or isinstance(val, bool)
+                        or (
+                            isinstance(val, dict)
+                            and val
+                            and list(val.keys())[0][0] != section_prefix
+                        )
+                    ):
                         rv += "\n%s}\n" % (indent * level)
                     else:
                         rv += "%s}\n" % (indent * level)
             else:
                 rv += indent * level
 
-                if prevtype == 'value_hash':
+                if prevtype == "value_hash":
                     rv += '"%s" => ' % key
                 else:
                     rv += "%s => " % key
@@ -576,28 +613,27 @@ def encode_logstash(
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     indent=indent,
-                    level=level+1,
-                    prevtype=(
-                        'value_hash' if isinstance(val, dict) else 'value'))
+                    level=level + 1,
+                    prevtype=("value_hash" if isinstance(val, dict) else "value"),
+                )
 
-            if (
-                    items[-1] != (key, val) and (
-                        isinstance(val, string_types) or
-                        _is_num(val) or
-                        isinstance(val, bool))):
+            if items[-1] != (key, val) and (
+                isinstance(val, string_types) or _is_num(val) or isinstance(val, bool)
+            ):
                 rv += "\n"
 
-        if prevtype in ('value', 'value_hash', 'array'):
-            rv += "\n%s}" % (indent * (level-1))
+        if prevtype in ("value", "value_hash", "array"):
+            rv += "\n%s}" % (indent * (level - 1))
 
-            if prevtype in ('value', 'value_array'):
+            if prevtype in ("value", "value_array"):
                 rv += "\n"
 
     elif (
-            _is_num(data) or
-            isinstance(data, bool) or
-            (convert_nums and _str_is_num(data)) or
-            (convert_bools and _str_is_bool(data))):
+        _is_num(data)
+        or isinstance(data, bool)
+        or (convert_nums and _str_is_num(data))
+        or (convert_bools and _str_is_bool(data))
+    ):
         # It's number or boolean
 
         rv += str(data).lower()
@@ -606,7 +642,7 @@ def encode_logstash(
         # It's a string
 
         if data.startswith(backslash_ignore_prefix):
-            rv += "%s" % data[len(backslash_ignore_prefix):]
+            rv += "%s" % data[len(backslash_ignore_prefix) :]
         else:
             rv += '"%s"' % _escape(data)
 
@@ -614,8 +650,7 @@ def encode_logstash(
         # It's a list
 
         for val in data:
-            if isinstance(val, dict) and list(
-                    val.keys())[0][0] == section_prefix:
+            if isinstance(val, dict) and list(val.keys())[0][0] == section_prefix:
                 # Value is a block
 
                 rv += encode_logstash(
@@ -624,7 +659,8 @@ def encode_logstash(
                     convert_nums=convert_nums,
                     indent=indent,
                     level=level,
-                    prevtype='block')
+                    prevtype="block",
+                )
             else:
                 # First item of the loop
                 if data[0] == val:
@@ -636,12 +672,13 @@ def encode_logstash(
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     indent=indent,
-                    level=level+1,
-                    prevtype='array')
+                    level=level + 1,
+                    prevtype="array",
+                )
 
                 # Last item of the loop
                 if data[-1] == val:
-                    rv += "\n%s]" % (indent * (level-1))
+                    rv += "\n%s]" % (indent * (level - 1))
                 else:
                     rv += ",\n"
 
@@ -649,22 +686,28 @@ def encode_logstash(
 
 
 def encode_lua(
-        data, convert_bools=False, convert_nums=False,
-        indent='    ', level=0, sort_keys=True):
+    data,
+    convert_bools=False,
+    convert_nums=False,
+    indent="    ",
+    level=0,
+    sort_keys=True,
+):
     """Convert Python data structure to Lua format."""
 
     # Return value
     rv = ""
 
     if (
-            _is_num(data) or
-            (convert_nums and _str_is_num(data)) or
-            (convert_bools and _str_is_bool(data))):
+        _is_num(data)
+        or (convert_nums and _str_is_num(data))
+        or (convert_bools and _str_is_bool(data))
+    ):
         # It's a number or boolean
         rv += str(data).lower() + ";"
 
     elif isinstance(data, string_types):
-        if data == 'null':
+        if data == "null":
             rv += "nil;"
         else:
             rv += '"%s";' % _escape(_escape(data), format="control")
@@ -679,10 +722,11 @@ def encode_lua(
                 convert_nums=convert_nums,
                 sort_keys=sort_keys,
                 indent=indent,
-                level=level + 1)
-            rv += "%s%s\n" % (indent*level, val)
+                level=level + 1,
+            )
+            rv += "%s%s\n" % (indent * level, val)
 
-        rv += "%s}" % (indent*(level-1))
+        rv += "%s}" % (indent * (level - 1))
 
         if level > 1:
             rv += ";"
@@ -702,8 +746,9 @@ def encode_lua(
                 convert_nums=convert_nums,
                 sort_keys=sort_keys,
                 indent=indent,
-                level=level + 1)
-            rv += "%s%s = %s\n" % (indent*level, key, val)
+                level=level + 1,
+            )
+            rv += "%s%s = %s\n" % (indent * level, key, val)
 
         if level > 0:
             rv += indent * (level - 1) + "}"
@@ -711,15 +756,19 @@ def encode_lua(
             if level > 1:
                 rv += ";"
     else:
-        raise errors.AnsibleFilterError(
-            "Unexpected data type: %s" % (type(data)))
+        raise errors.AnsibleFilterError("Unexpected data type: %s" % (type(data)))
 
     return rv
 
 
 def encode_nginx(
-        data, block_semicolon=False, indent="  ", level=0, semicolon=';',
-        semicolon_ignore_postfix='!;'):
+    data,
+    block_semicolon=False,
+    indent="  ",
+    level=0,
+    semicolon=";",
+    semicolon_ignore_postfix="!;",
+):
     """Convert Python data structure to Nginx format."""
 
     # Return value
@@ -730,34 +779,34 @@ def encode_nginx(
     for item in data:
         if isinstance(item, dict):
             # Section
-            if item_type in ('section', 'line'):
+            if item_type in ("section", "line"):
                 rv += "\n"
 
-            rv += "%s%s {\n" % (level*indent, list(item.keys())[0])
+            rv += "%s%s {\n" % (level * indent, list(item.keys())[0])
             rv += encode_nginx(
                 list(item.values())[0],
-                level=level+1,
+                level=level + 1,
                 block_semicolon=block_semicolon,
                 semicolon=semicolon,
-                semicolon_ignore_postfix=semicolon_ignore_postfix)
-            rv += "%s}%s\n" % (
-                level*indent, semicolon if block_semicolon else '')
+                semicolon_ignore_postfix=semicolon_ignore_postfix,
+            )
+            rv += "%s}%s\n" % (level * indent, semicolon if block_semicolon else "")
 
-            item_type = 'section'
+            item_type = "section"
 
         elif isinstance(item, string_types):
             # Normal line
-            if item_type == 'section':
+            if item_type == "section":
                 rv += "\n"
 
-            item_type = 'line'
+            item_type = "line"
             ignore_semicolon = False
 
             if item.endswith(semicolon_ignore_postfix):
-                item = item[:-len(semicolon_ignore_postfix)]
+                item = item[: -len(semicolon_ignore_postfix)]
                 ignore_semicolon = True
 
-            rv += "%s%s" % (level*indent, item)
+            rv += "%s%s" % (level * indent, item)
 
             # Do not finish comments with semicolon
             if item.startswith("# ") or ignore_semicolon:
@@ -766,14 +815,12 @@ def encode_nginx(
                 rv += "%s\n" % (semicolon)
 
         else:
-            raise errors.AnsibleFilterError(
-                "Unexpected data type: %s" % (type(item)))
+            raise errors.AnsibleFilterError("Unexpected data type: %s" % (type(item)))
 
     return rv
 
 
-def encode_pam(
-        data, print_label=False, separate_types=True, separator="  "):
+def encode_pam(data, print_label=False, separate_types=True, separator="  "):
     """Convert Python data structure to PAM format."""
 
     # Return value
@@ -784,40 +831,43 @@ def encode_pam(
     for label, rule in sorted(data.items()):
         if separate_types:
             # Add extra newline to separate blocks of the same type
-            if prev_type is not None and prev_type != rule['type']:
+            if prev_type is not None and prev_type != rule["type"]:
                 rv += "\n"
 
-            prev_type = rule['type']
+            prev_type = rule["type"]
 
         if print_label:
             rv += "# %s\n" % label
 
-        if 'service' in rule:
-            rv += "%s%s" % (rule['service'], separator)
+        if "service" in rule:
+            rv += "%s%s" % (rule["service"], separator)
 
-        if 'silent' in rule and rule['silent']:
-            rv += '-'
+        if "silent" in rule and rule["silent"]:
+            rv += "-"
 
-        rv += "%s%s" % (rule['type'], separator)
+        rv += "%s%s" % (rule["type"], separator)
 
-        if isinstance(rule['control'], list):
+        if isinstance(rule["control"], list):
             rv += "[%s]%s" % (
                 " ".join(
                     map(
                         lambda k: "=".join(map(str, k)),
-                        map(lambda x: list(x.items())[0], rule['control']))),
-                separator)
+                        map(lambda x: list(x.items())[0], rule["control"]),
+                    )
+                ),
+                separator,
+            )
         else:
-            rv += "%s%s" % (rule['control'], separator)
+            rv += "%s%s" % (rule["control"], separator)
 
-        rv += rule['path']
+        rv += rule["path"]
 
-        if 'args' in rule and rule['args']:
+        if "args" in rule and rule["args"]:
             rv += separator
 
-            for i, arg in enumerate(rule['args']):
+            for i, arg in enumerate(rule["args"]):
                 if i > 0:
-                    rv += ' '
+                    rv += " "
 
                 if isinstance(arg, dict):
                     rv += "=".join(map(str, list(arg.items())[0]))
@@ -830,8 +880,14 @@ def encode_pam(
 
 
 def encode_toml(
-        data, convert_bools=False, convert_nums=False, first=True, quote='"',
-        table_name="", table_type=None):
+    data,
+    convert_bools=False,
+    convert_nums=False,
+    first=True,
+    quote='"',
+    table_name="",
+    table_type=None,
+):
     """Convert Python data structure to TOML format."""
 
     # Return value
@@ -850,7 +906,7 @@ def encode_toml(
                     if not first:
                         rv += "\n"
 
-                    if table_type == 'table':
+                    if table_type == "table":
                         rv += "[%s]\n" % tn
                     else:
                         rv += "[[%s]]\n" % tn
@@ -862,16 +918,18 @@ def encode_toml(
                         convert_bools=convert_bools,
                         convert_nums=convert_nums,
                         first=first,
-                        quote=quote))
+                        quote=quote,
+                    ),
+                )
 
                 first = False
-                tn = ''
+                tn = ""
             elif isinstance(v, list) and (not v or not isinstance(v[0], dict)):
                 if tn:
                     if not first:
                         rv += "\n"
 
-                    if table_type == 'table':
+                    if table_type == "table":
                         rv += "[%s]\n" % tn
                     else:
                         rv += "[[%s]]\n" % tn
@@ -883,16 +941,18 @@ def encode_toml(
                         convert_bools=convert_bools,
                         convert_nums=convert_nums,
                         first=first,
-                        quote=quote))
+                        quote=quote,
+                    ),
+                )
 
                 first = False
-                tn = ''
+                tn = ""
 
         if not data and table_type is not None:
             if not first:
                 rv += "\n"
 
-            if table_type == 'table':
+            if table_type == "table":
                 rv += "[%s]\n" % tn
             else:
                 rv += "[[%s]]\n" % tn
@@ -905,7 +965,7 @@ def encode_toml(
                 # Table
                 tk = k
 
-                if '.' in k:
+                if "." in k:
                     tk = "%s%s%s" % (quote, _escape(k, quote), quote)
 
                 if tn:
@@ -920,14 +980,15 @@ def encode_toml(
                     first=first,
                     quote=quote,
                     table_name=tn,
-                    table_type='table')
+                    table_type="table",
+                )
 
                 first = False
             elif isinstance(v, list) and (not v or isinstance(v[0], dict)):
                 # Array of tables
                 tk = k
 
-                if '.' in k:
+                if "." in k:
                     tk = "%s%s%s" % (quote, _escape(k, quote), quote)
 
                 if tn:
@@ -943,7 +1004,8 @@ def encode_toml(
                         first=first,
                         quote=quote,
                         table_name=tn,
-                        table_type='table_array')
+                        table_type="table_array",
+                    )
 
                     first = False
 
@@ -954,10 +1016,7 @@ def encode_toml(
             all_elementar = True
 
             for lv in a:
-                if (
-                        isinstance(lv, dict) or (
-                            isinstance(lv, list) and
-                            not is_elem(lv))):
+                if isinstance(lv, dict) or (isinstance(lv, list) and not is_elem(lv)):
                     all_elementar = False
                     break
 
@@ -966,7 +1025,7 @@ def encode_toml(
         if is_elem(data):
             v_len = len(data)
 
-            array = ''
+            array = ""
 
             for i, lv in enumerate(data):
                 array += "%s" % encode_toml(
@@ -974,18 +1033,20 @@ def encode_toml(
                     convert_bools=convert_bools,
                     convert_nums=convert_nums,
                     first=first,
-                    quote=quote)
+                    quote=quote,
+                )
 
-                if i+1 < v_len:
-                    array += ', '
+                if i + 1 < v_len:
+                    array += ", "
 
             rv += "[%s]" % (array)
 
     elif (
-            _is_num(data) or
-            isinstance(data, bool) or
-            (convert_nums and _str_is_num(data)) or
-            (convert_bools and _str_is_bool(data))):
+        _is_num(data)
+        or isinstance(data, bool)
+        or (convert_nums and _str_is_num(data))
+        or (convert_bools and _str_is_bool(data))
+    ):
         # It's number or boolean
 
         rv += str(data).lower()
@@ -999,18 +1060,24 @@ def encode_toml(
 
 
 def encode_ucl(
-        data, convert_bools=False, convert_nums=False,
-        indent="    ", level=0, sort_keys=True):
+    data,
+    convert_bools=False,
+    convert_nums=False,
+    indent="    ",
+    level=0,
+    sort_keys=True,
+):
     """Convert Python data structure to UCL format."""
 
     # Return value
     rv = ""
 
     if (
-            _is_num(data)
-            or (convert_nums and _str_is_num(data))
-            or isinstance(data, bool)
-            or (convert_bools and _str_is_bool(data))):
+        _is_num(data)
+        or (convert_nums and _str_is_num(data))
+        or isinstance(data, bool)
+        or (convert_bools and _str_is_bool(data))
+    ):
         # It's a number or boolean
         rv += str(data).lower() + ";"
 
@@ -1143,8 +1210,7 @@ def encode_ucl(
     return rv
 
 
-def encode_xml(
-        data, attribute_sign="^", escape_xml=True, indent="  ", level=0):
+def encode_xml(data, attribute_sign="^", escape_xml=True, indent="  ", level=0):
     """Convert Python data structure to XML format."""
 
     # Return value
@@ -1153,16 +1219,17 @@ def encode_xml(
     if isinstance(data, list):
         # Pocess anything what's not attribute
         for item in data:
-            if (
-                    not (
-                        isinstance(item, dict) and
-                        list(item.keys())[0].startswith(attribute_sign))):
+            if not (
+                isinstance(item, dict)
+                and list(item.keys())[0].startswith(attribute_sign)
+            ):
                 rv += encode_xml(
                     item,
                     attribute_sign=attribute_sign,
                     indent=indent,
                     level=level,
-                    escape_xml=escape_xml)
+                    escape_xml=escape_xml,
+                )
     elif isinstance(data, dict):
         # It's eiher an attribute or an element
 
@@ -1173,24 +1240,25 @@ def encode_xml(
             rv += ' %s="%s"' % (key[1:], _escape(val))
         else:
             # Process element
-            rv = '%s<%s' % (level*indent, key)
+            rv = "%s<%s" % (level * indent, key)
 
             # Check if there are any attributes
             if isinstance(val, list):
                 num_attrs = 0
 
                 for item in val:
-                    if (
-                            isinstance(item, dict) and
-                            list(item.keys())[0].startswith(attribute_sign)):
+                    if isinstance(item, dict) and list(item.keys())[0].startswith(
+                        attribute_sign
+                    ):
                         num_attrs += 1
                         rv += encode_xml(
                             item,
                             attribute_sign=attribute_sign,
                             indent=indent,
-                            level=level)
+                            level=level,
+                        )
 
-            if val == '' or (isinstance(val, list) and num_attrs == len(val)):
+            if val == "" or (isinstance(val, list) and num_attrs == len(val)):
                 # Close the element as empty
                 rv += " />\n"
             else:
@@ -1203,8 +1271,9 @@ def encode_xml(
                 if isinstance(val, list):
                     # Check if it contains only attributes and a text value
                     for item in val:
-                        if (isinstance(item, dict) and not list(
-                                item.keys())[0].startswith(attribute_sign)):
+                        if isinstance(item, dict) and not list(item.keys())[
+                            0
+                        ].startswith(attribute_sign):
                             val_not_text = True
                             break
                 elif isinstance(val, dict):
@@ -1218,24 +1287,32 @@ def encode_xml(
                     val,
                     attribute_sign=attribute_sign,
                     indent=indent,
-                    level=level+1,
-                    escape_xml=escape_xml)
+                    level=level + 1,
+                    escape_xml=escape_xml,
+                )
 
                 if val_not_text:
-                    rv += level*indent
+                    rv += level * indent
 
                 rv += "</%s>\n" % key
     else:
         # It's a string
 
-        rv += "%s" % _escape(data, format=('xml' if escape_xml else None))
+        rv += "%s" % _escape(data, format=("xml" if escape_xml else None))
 
     return rv
 
 
 def encode_yaml(
-        data, block_prefix=';;;', convert_bools=False, convert_nums=False,
-        indent="  ", level=0, quote='"', skip_indent=False):
+    data,
+    block_prefix=";;;",
+    convert_bools=False,
+    convert_nums=False,
+    indent="  ",
+    level=0,
+    quote='"',
+    skip_indent=False,
+):
     """Convert Python data structure to YAML format."""
 
     # Return value
@@ -1249,16 +1326,14 @@ def encode_yaml(
         else:
             for i, (key, val) in enumerate(sorted(data.items())):
                 # Skip indentation only for the first pair
-                rv += "%s%s:" % (
-                    "" if i == 0 and skip_indent else level*indent, key)
+                rv += "%s%s:" % ("" if i == 0 and skip_indent else level * indent, key)
 
                 if isinstance(val, dict) and len(val.keys()) == 0:
                     rv += " {}\n"
                 else:
-                    if (
-                            isinstance(val, dict) or (
-                                isinstance(val, list) and
-                                len(val) != 0)):
+                    if isinstance(val, dict) or (
+                        isinstance(val, list) and len(val) != 0
+                    ):
                         rv += "\n"
                     else:
                         rv += " "
@@ -1269,8 +1344,9 @@ def encode_yaml(
                         convert_bools=convert_bools,
                         convert_nums=convert_nums,
                         indent=indent,
-                        level=level+1,
-                        quote=quote)
+                        level=level + 1,
+                        quote=quote,
+                    )
 
     elif isinstance(data, list):
         # It's a list
@@ -1280,31 +1356,34 @@ def encode_yaml(
         else:
             for item in data:
                 if isinstance(item, list):
-                    list_indent = "%s-\n" % (level*indent)
+                    list_indent = "%s-\n" % (level * indent)
                 else:
-                    list_indent = "%s- " % (level*indent)
+                    list_indent = "%s- " % (level * indent)
 
-                rv += "%s%s" % (list_indent, encode_yaml(
-                    item,
-                    block_prefix=block_prefix,
-                    convert_bools=convert_bools,
-                    convert_nums=convert_nums,
-                    indent=indent,
-                    level=level+1,
-                    quote=quote,
-                    skip_indent=True))
+                rv += "%s%s" % (
+                    list_indent,
+                    encode_yaml(
+                        item,
+                        block_prefix=block_prefix,
+                        convert_bools=convert_bools,
+                        convert_nums=convert_nums,
+                        indent=indent,
+                        level=level + 1,
+                        quote=quote,
+                        skip_indent=True,
+                    ),
+                )
 
     elif (
-            data == "null" or
-            isinstance(data, bool) or
-            (convert_bools and _str_is_bool(data))):
+        data == "null"
+        or isinstance(data, bool)
+        or (convert_bools and _str_is_bool(data))
+    ):
         # It's a boolean
 
         rv += "%s\n" % str(data).lower()
 
-    elif (
-            _is_num(data) or
-            (convert_nums and _str_is_num(data))):
+    elif _is_num(data) or (convert_nums and _str_is_num(data)):
         # It's a number
 
         rv += "%s\n" % str(data)
@@ -1315,8 +1394,9 @@ def encode_yaml(
         if data is None:
             rv += "null\n"
         elif data.startswith(block_prefix):
-            rv += "%s\n" % data[len(block_prefix):].replace(
-                "\n", "\n%s" % (level*indent))
+            rv += "%s\n" % data[len(block_prefix) :].replace(
+                "\n", "\n%s" % (level * indent)
+            )
         else:
             rv += "%s%s%s\n" % (quote, _escape(data, quote), quote)
 
@@ -1326,15 +1406,15 @@ def encode_yaml(
 def __eval_replace(match):
     """Evaluate the real value of the variable specified as a string."""
 
-    ret = '__item'
-    ret += ''.join(match.groups()[1:])
+    ret = "__item"
+    ret += "".join(match.groups()[1:])
 
     # Try to evaluate the value of the special string
     try:
         ret = eval(ret)
     except Exception:
         # Return empty string if something went wrong
-        ret = ''
+        ret = ""
 
     return str(ret)
 
@@ -1351,14 +1431,13 @@ def template_replace(data, replacement):
 
     # Walk through the data structure and try to replace all special strings
     if isinstance(local_data, list):
-        local_data = map(
-            lambda x: template_replace(x, replacement), local_data)
+        local_data = map(lambda x: template_replace(x, replacement), local_data)
     elif isinstance(local_data, dict):
         for key, val in local_data.items():
             local_data[key] = template_replace(val, replacement)
     elif isinstance(local_data, string_types):
         # Replace the special string by it's evaluated value
-        p = re.compile(r'\{\[\{\s*(\w+)([^}\s]+|)\s*\}\]\}')
+        p = re.compile(r"\{\[\{\s*(\w+)([^}\s]+|)\s*\}\]\}")
         local_data = p.sub(__eval_replace, local_data)
 
     return local_data
@@ -1371,18 +1450,18 @@ class FilterModule(object):
         """Expose filters to ansible."""
 
         return {
-            'encode_apache': encode_apache,
-            'encode_erlang': encode_erlang,
-            'encode_haproxy': encode_haproxy,
-            'encode_ini': encode_ini,
-            'encode_json': encode_json,
-            'encode_logstash': encode_logstash,
-            'encode_lua': encode_lua,
-            'encode_nginx': encode_nginx,
-            'encode_pam': encode_pam,
-            'encode_toml': encode_toml,
-            'encode_ucl': encode_ucl,
-            'encode_xml': encode_xml,
-            'encode_yaml': encode_yaml,
-            'template_replace': template_replace,
+            "encode_apache": encode_apache,
+            "encode_erlang": encode_erlang,
+            "encode_haproxy": encode_haproxy,
+            "encode_ini": encode_ini,
+            "encode_json": encode_json,
+            "encode_logstash": encode_logstash,
+            "encode_lua": encode_lua,
+            "encode_nginx": encode_nginx,
+            "encode_pam": encode_pam,
+            "encode_toml": encode_toml,
+            "encode_ucl": encode_ucl,
+            "encode_xml": encode_xml,
+            "encode_yaml": encode_yaml,
+            "template_replace": template_replace,
         }
